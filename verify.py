@@ -4,23 +4,41 @@ import smtplib
 import concurrent.futures as cf
 from multiprocessing import cpu_count
 import os.path
+#import socket
+
+### LOCAL IMPORTS ###
+import constants
 
 ### EXTERNAL IMPORTS ###
 import dns.resolver
+import socks
 
 class Verify:
 	def __init__(self):
 		self.SMTP_CONN_DICT = {}
 		self.executor = cf.ThreadPoolExecutor(max_workers=cpu_count())
-		self.__parallel_init_smtp(common_domains)
-		self.at_sym = '@'
+		#self.__parallel_init_smtp(constants.COMMON_DOMAINS)
 
-	def __call__(self, emails):
+		self.at_sym = '@'
+		self.port = 587
+		self.default_pref_host = (9000, 'temp')
+		self.__init_SOCKS_proxy()
+
+	def __call__(self, emails=None):
+
+		if type(emails) is str:
+			self.verify_emails(emails)
+
 		emails = list(emails)
 		if len(emails) <= 1:
 			self.verify_email(emails[0])
 		else:
 			self.verify_emails(emails)
+
+	def __init_SOCKS_proxy(self):
+		#'PROXY_TYPE_SOCKS4' can be replaced to HTTP or PROXY_TYPE_SOCKS5
+		socks.setdefaultproxy(socks.PROXY_TYPE_SOCKS4, '127.0.0.1', self.port)
+		socks.wrapmodule(smtplib)
 
 	# THREAD POOL FUNCS
 	def __generic_parallel_exec(self, func, map_list):
@@ -37,18 +55,19 @@ class Verify:
 	
 	# SMTP INIT
 	def __init_smtp(self, domain, timeout=2):
-		if domain not in SMTP_CONN_DICT.keys():
+		if domain not in self.SMTP_CONN_DICT.keys():
 			smtp_hostname = self.__get_smtp_hostname(domain)
-			SMTP_CONN_DICT[domain] = smtplib.SMTP(host=smtp_hostname, timeout=timeout)
+			self.SMTP_CONN_DICT[domain] = smtplib.SMTP(host=smtp_hostname, 
+				port=self.port, timeout=timeout)
 	
 	def __parallel_init_smtp(self, domains):
 		self.__generic_parallel_exec(self.__init_smtp, domains)
 
 	# MISC PRIVATE HELPERS
 	def __get_smtp_hostname(self, domain):
-		smallest_pref_host = (9000, 'temp')
+		smallest_pref_host = None
 		for answer in dns.resolver.query(domain, 'MX'):
-			if (answer.preference < smallest_pref_host[0]):
+			if (answer.preference < self.default_pref_host[0]):
 				smallest_pref_host = (answer.preference, answer.exchange)
 		return str(smallest_pref_host[1])
 
@@ -65,7 +84,8 @@ class Verify:
     # USER METHODS
 	def verify_email(self, email):
 		domain = email[email.find(self.at_sym) + 1:]
-		conn = SMTP_CONN_DICT[domain]
+		self.__init_smtp(domain)
+		conn = self.SMTP_CONN_DICT[domain]
 
 		if (conn.helo()[0]) != 250:
 			conn.quit()
@@ -85,11 +105,16 @@ class Verify:
 	def verify_emails(self, emails, cache_domains=True):
 		# if is path, get addresses, exec in parallel
 		addresses = emails
-		if os.path.isfile(emails):
+		if type(emails) is str and os.path.isfile(emails):
 			if cache_domains: 
 				self.__add_unknown_domains_from_path(emails)
 			with open(emails, 'r') as file:
 				addresses = [line for line in file.readlines()]
 
 		return self.__generic_parallel_exec(self.verify_email, addresses)
+
+if __name__ =='__main__':
+	verify = Verify()
+	#verify('michaelusa@coinflip.tech')
+	verify.verify_email('musachenko@gmail.com')
 
