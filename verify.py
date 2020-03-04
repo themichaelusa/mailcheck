@@ -4,7 +4,6 @@ import dns.resolver
 
 ### GLOBAL ###
 socket.setdefaulttimeout(5)
-#SMTP_CONN_DICT = {}
 
 def get_smtp_hostname(domain):
 	smallest_pref_host = (9000, 'temp')
@@ -14,7 +13,6 @@ def get_smtp_hostname(domain):
 	return str(smallest_pref_host[1])
 
 def init_smtp(domain, timeout):
-	#if domain not in SMTP_CONN_DICT.keys():
 
 	smtp_hostname = None
 	try:
@@ -25,7 +23,6 @@ def init_smtp(domain, timeout):
 	
 	smtp_conn = None
 	try:
-		#SMTP_CONN_DICT[domain] = smtplib.SMTP(host=smtp_hostname, timeout=timeout)
 		smtp_conn = smtplib.SMTP(host=smtp_hostname, timeout=timeout)
 	except (
 		socket.timeout,
@@ -45,12 +42,6 @@ def verify_email(domain, email, timeout=5):
 	if conn is None:
 		return None
 
-	"""
-	if not init_smtp(domain, timeout): 
-		return False
-
-	conn = SMTP_CONN_DICT[domain]
-	"""
 	try:
 		if (conn.helo()[0]) != 250:
 			conn.quit()
